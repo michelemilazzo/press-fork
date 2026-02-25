@@ -504,3 +504,4 @@ persistent_cache_keys = [
 
 before_migrate = ["press.overrides.before_after_migrate"]
 after_migrate = ["press.overrides.before_after_migrate"]
+frappe_version = ">=15.0.0,<17.0.0"
