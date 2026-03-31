@@ -217,7 +217,12 @@ def new_unified(server: UnifiedServerDetails):
 
 	proxy_server = frappe.get_all(
 		"Proxy Server",
-		{"status": "Active", "cluster": cluster.name, "is_primary": True},
+		{
+			"status": "Active",
+			"cluster": cluster.name,
+			"is_primary": True,
+			"exclude_from_auto_selection": False,
+		},
 		limit=1,
 	)[0]
 
@@ -259,7 +264,12 @@ def new(server):
 
 	proxy_server = frappe.get_all(
 		"Proxy Server",
-		{"status": "Active", "cluster": cluster.name, "is_primary": True},
+		{
+			"status": "Active",
+			"cluster": cluster.name,
+			"is_primary": True,
+			"exclude_from_auto_selection": False,
+		},
 		limit=1,
 	)[0]
 
@@ -588,8 +598,8 @@ def prometheus_query(
 	except requests.exceptions.RequestException:
 		frappe.throw("Unable to connect to monitor server", MonitorServerDown)
 
-	datasets = []
-	labels = []
+	datasets: list[dict] = []
+	labels: list[float] = []
 
 	if not response["data"]["result"]:
 		return {"datasets": datasets, "labels": labels}
@@ -606,12 +616,12 @@ def prometheus_query(
 			dataset["values"][labels.index(label)] = flt(value, 2)
 		datasets.append(dataset)
 
-	labels = [
+	converted_labels: list[datetime] = [
 		convert_utc_to_timezone(datetime.fromtimestamp(label, tz=tz.utc).replace(tzinfo=None), timezone)
 		for label in labels
 	]
 
-	return {"datasets": datasets, "labels": labels}
+	return {"datasets": datasets, "labels": converted_labels}
 
 
 @frappe.whitelist()
@@ -631,6 +641,10 @@ def options():
 
 	if is_system_user:
 		regions_filter.pop("public", None)
+
+	# Temporarily here to skip the Frappe Compute cloud provider
+	if not get_current_team(get_doc=True).is_frappe_compute_internal_user:
+		regions_filter["cloud_provider"] = ("not in", ["Generic", "Frappe Compute"])
 
 	regions = frappe.get_all(
 		"Cluster",

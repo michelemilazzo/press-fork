@@ -123,6 +123,7 @@ class PressSettings(Document):
 		minimum_rebuild_memory: DF.Int
 		monitor_server: DF.Link | None
 		monitor_token: DF.Data | None
+		new_bench_concurrency_limit: DF.Int
 		ngrok_auth_token: DF.Data | None
 		npo_discount: DF.Float
 		offsite_backups_access_key_id: DF.Data | None
@@ -138,6 +139,7 @@ class PressSettings(Document):
 		press_monitoring_password: DF.Password | None
 		press_trial_plan: DF.Link | None
 		print_format: DF.Data | None
+		production_server_ip: DF.Data | None
 		publish_docs: DF.Check
 		razorpay_key_id: DF.Data | None
 		razorpay_key_secret: DF.Password | None
@@ -158,7 +160,6 @@ class PressSettings(Document):
 		servers_using_alternative_http_port_for_communication: DF.SmallText | None
 		set_redis_password: DF.Check
 		shared_directory: DF.Data | None
-		spaces_domain: DF.Link | None
 		spamd_api_key: DF.Data | None
 		spamd_api_secret: DF.Password | None
 		spamd_endpoint: DF.Data | None
@@ -235,6 +236,7 @@ class PressSettings(Document):
 				"payment_method.attached",
 				"invoice.payment_action_required",
 				"invoice.payment_succeeded",
+				"invoice.paid",
 				"invoice.payment_failed",
 				"invoice.finalized",
 				"mandate.updated",

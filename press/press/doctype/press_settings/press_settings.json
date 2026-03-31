@@ -100,6 +100,7 @@
   "build_directory",
   "build_server",
   "minimum_rebuild_memory",
+  "new_bench_concurrency_limit",
   "column_break_66",
   "code_server",
   "code_server_password",
@@ -190,6 +191,8 @@
   "plausible_site_id",
   "plausible_api_key",
   "infrastructure_tab",
+  "general_section",
+  "production_server_ip",
   "agent_section",
   "agent_repository_owner",
   "agent_sentry_dsn",
@@ -255,8 +258,6 @@
   "hybrid_cluster",
   "hybrid_domain",
   "tls_renewal_queue_size",
-  "code_spaces_tab",
-  "spaces_domain",
   "security_tab",
   "wazuh_server"
  ],
@@ -1075,17 +1076,6 @@
    "label": "Plausible site id"
   },
   {
-   "fieldname": "code_spaces_tab",
-   "fieldtype": "Tab Break",
-   "label": "Code Spaces"
-  },
-  {
-   "fieldname": "spaces_domain",
-   "fieldtype": "Link",
-   "label": "Spaces Domain",
-   "options": "Root Domain"
-  },
-  {
    "default": "0",
    "fieldname": "suspend_builds",
    "fieldtype": "Check",
@@ -1567,6 +1557,36 @@
    "label": "Disable Binlog Indexer Service"
   },
   {
+   "fieldname": "default_server_plan_type",
+   "fieldtype": "Link",
+   "label": "Default Server Plan Type",
+   "options": "Server Plan Type"
+  },
+  {
+   "fieldname": "frappe_school_authentication_section",
+   "fieldtype": "Section Break",
+   "label": "Frappe School Authentication"
+  },
+  {
+   "fieldname": "school_url",
+   "fieldtype": "Data",
+   "label": "School URL"
+  },
+  {
+   "fieldname": "school_api_key",
+   "fieldtype": "Data",
+   "label": "School API Key"
+  },
+  {
+   "fieldname": "column_break_uxxz",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "school_api_secret",
+   "fieldtype": "Password",
+   "label": "School API Secret"
+  },
+  {
    "collapsible": 1,
    "fieldname": "asset_store_section",
    "fieldtype": "Section Break",
@@ -1633,11 +1653,27 @@
    "fieldname": "school_api_secret",
    "fieldtype": "Password",
    "label": "School API Secret"
+  },
+  {
+   "fieldname": "general_section",
+   "fieldtype": "Section Break",
+   "label": "General"
+  },
+  {
+   "fieldname": "production_server_ip",
+   "fieldtype": "Data",
+   "label": "Production Server IP"
+  },
+  {
+   "default": "30",
+   "fieldname": "new_bench_concurrency_limit",
+   "fieldtype": "Int",
+   "label": "New Bench Concurrency Limit"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-01-21 10:16:18.560642",
+ "modified": "2026-03-30 17:54:01.627698",
  "modified_by": "Administrator",
  "module": "Press",
  "name": "Press Settings",

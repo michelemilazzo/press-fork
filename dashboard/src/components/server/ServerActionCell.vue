@@ -22,7 +22,7 @@
 
 <script setup>
 import { createDocumentResource, getCachedDocumentResource } from 'frappe-ui';
-import { h } from 'vue';
+import { h, onMounted } from 'vue';
 import { toast } from 'vue-sonner';
 import router from '../../router';
 import { confirmDialog, renderDialog } from '../../utils/components';
@@ -32,6 +32,8 @@ import CleanupDialog from './CleanupDialog.vue';
 import DatabaseBinlogsDialog from './DatabaseBinlogsDialog.vue';
 import DatabaseConfigurationDialog from './DatabaseConfigurationDialog.vue';
 import SecondaryServerPlanDialog from './SecondaryServerPlanDialog.vue';
+import OnPremFailoverDialog from './OnPremFailoverDialog.vue';
+import { useRoute } from 'vue-router';
 
 const props = defineProps({
 	serverName: { type: String, required: true },
@@ -44,6 +46,14 @@ const props = defineProps({
 });
 
 const server = getCachedDocumentResource(props.serverType, props.serverName);
+const route = useRoute();
+
+onMounted(() => {
+	const queryAction = route.query['action'];
+	if (props.actionLabel === queryAction) {
+		getServerActionHandler(queryAction);
+	}
+});
 
 function getServerActionHandler(action) {
 	const actionHandlers = {
@@ -65,6 +75,7 @@ function getServerActionHandler(action) {
 		'Forcefully Purge Binlogs': onPurgeBinlogsForcefully,
 		'Update Binlog Size Limit': onUpdateBinlogSizeLimit,
 		'Manage Database Binlogs': onViewMariaDBBinlogs,
+		'Manage On-Prem Replication': onManageOnPremFailover,
 	};
 	if (actionHandlers[action]) {
 		actionHandlers[action].call(this);
@@ -678,6 +689,14 @@ function onViewMariaDBBinlogs() {
 	renderDialog(
 		h(DatabaseBinlogsDialog, {
 			databaseServer: server.doc.name,
+		}),
+	);
+}
+
+function onManageOnPremFailover() {
+	renderDialog(
+		h(OnPremFailoverDialog, {
+			appServer: server.doc.name,
 		}),
 	);
 }

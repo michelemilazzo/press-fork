@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from collections import OrderedDict
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import frappe
 import requests
@@ -43,6 +43,7 @@ if TYPE_CHECKING:
 	from press.press.doctype.bench.bench import Bench
 	from press.press.doctype.deploy_candidate.deploy_candidate import DeployCandidate
 	from press.press.doctype.deploy_candidate_build.deploy_candidate_build import DeployCandidateBuild
+	from press.press.doctype.marketplace_app.marketplace_app import MarketplaceApp
 
 
 @frappe.whitelist()
@@ -764,6 +765,9 @@ def deploy(name, apps):
 
 def validate_app_hashes(apps: list[dict[str, str]]):
 	"""Ensure none of them are yanked"""
+	if not apps:
+		return
+
 	hashes = []
 	for app in apps:
 		if not app.get("release") or not app.get("hash"):
@@ -774,7 +778,7 @@ def validate_app_hashes(apps: list[dict[str, str]]):
 	YankedAppRelease = frappe.qb.DocType("Yanked App Release")
 	has_yanked_apps = (
 		frappe.qb.from_(YankedAppRelease)
-		.where(YankedAppRelease.hash.isin(hashes))
+		.where(YankedAppRelease.hash.isin(hashes or [""]))
 		.select(YankedAppRelease.hash)
 		.run(as_dict=True)
 	)
@@ -932,7 +936,7 @@ def validate_branch(name: str, app: str, branch: str):
 def get_branches_for_marketplace_app(app: str, marketplace_app: str, app_source: AppSource) -> list[dict]:
 	"""Return list of branches allowed for this `marketplace` app"""
 	branch_set = set()
-	marketplace_app = frappe.get_doc("Marketplace App", marketplace_app)
+	marketplace_app: MarketplaceApp = frappe.get_doc("Marketplace App", marketplace_app)
 
 	for marketplace_app_source in marketplace_app.sources:
 		app_source = frappe.get_doc("App Source", marketplace_app_source.source)
@@ -1119,7 +1123,7 @@ def fail_and_redeploy(name: str, dc_name: str):
 
 @frappe.whitelist()
 @protected("Release Group")
-def show_app_versions(name: str, dc_name: str) -> dict[str, str]:
+def show_app_versions(name: str, dc_name: str) -> list[dict[str, Any]]:
 	"""Get app versions from the deploy candidate"""
 	candidate = frappe.db.get_value("Deploy Candidate Build", dc_name, "deploy_candidate")
 	deploy_candidate: "DeployCandidate" = frappe.get_cached_doc("Deploy Candidate", candidate)
@@ -1148,6 +1152,7 @@ def show_app_versions(name: str, dc_name: str) -> dict[str, str]:
 			"repository_url": sources.get(app.source).get("repository_url"),
 		}
 		for app in deploy_candidate.apps
+		if app
 	]
 
 
@@ -1225,22 +1230,26 @@ def search_releases(
 	if not query:
 		return []
 
-	DocType = frappe.qb.DocType("App Release")
+	AppRelease = frappe.qb.DocType("App Release")
+	YankedAppRelease = frappe.qb.DocType("Yanked App Release")
 	q = (
-		frappe.qb.from_(DocType)
+		frappe.qb.from_(AppRelease)
+		.left_join(YankedAppRelease)
+		.on(YankedAppRelease.hash == AppRelease.hash)
 		.select(*fields)
-		.where(DocType.hash.like(f"%{query.strip()}%") | DocType.message.like(f"%{query.strip()}%"))
+		.where(YankedAppRelease.hash.isnull())
+		.where(AppRelease.hash.like(f"%{query.strip()}%") | AppRelease.message.like(f"%{query.strip()}%"))
 	)
 
 	if current_release:
 		current_release_creation = frappe.get_value("App Release", current_release, "creation")
 		# downgrading apps is not supported
-		q = q.where(DocType.creation > current_release_creation)
+		q = q.where(AppRelease.creation > current_release_creation)
 
 	q = (
-		q.where((DocType.public == 1) & (DocType.status == "Approved"))
-		.where((DocType.app == app) & (DocType.source == source))
-		.orderby(DocType.timestamp, order=frappe.qb.desc)
+		q.where((AppRelease.public == 1) & (AppRelease.status == "Approved"))
+		.where((AppRelease.app == app) & (AppRelease.source == source))
+		.orderby(AppRelease.timestamp, order=frappe.qb.desc)
 		.limit(limit)
 	)
 

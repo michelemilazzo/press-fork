@@ -13,6 +13,7 @@ import frappe.utils
 import rq
 from frappe.core.doctype.version.version import get_diff
 from frappe.core.utils import find
+from frappe.utils import now_datetime
 from frappe.utils.password import get_decrypted_password
 
 from press.api.client import dashboard_whitelist
@@ -96,12 +97,15 @@ class DatabaseServer(BaseServer):
 		memory_max: DF.Float
 		memory_swap_max: DF.Float
 		mounts: DF.Table[ServerMount]
+		nat_server: DF.Link | None
 		plan: DF.Link | None
 		primary: DF.Link | None
 		private_ip: DF.Data | None
 		private_mac_address: DF.Data | None
 		private_vlan_id: DF.Data | None
-		provider: DF.Literal["Generic", "Scaleway", "AWS EC2", "OCI", "Hetzner", "Vodacom", "DigitalOcean"]
+		provider: DF.Literal[
+			"Generic", "Scaleway", "AWS EC2", "OCI", "Hetzner", "Vodacom", "DigitalOcean", "Frappe Compute"
+		]
 		public: DF.Check
 		ram: DF.Float
 		root_public_key: DF.Code | None
@@ -764,6 +768,7 @@ class DatabaseServer(BaseServer):
 
 	def _setup_server(self):
 		config = self._get_config()
+
 		try:
 			ansible = Ansible(
 				playbook="self_hosted_db.yml" if getattr(self, "is_self_hosted", False) else "database.yml",
@@ -789,6 +794,7 @@ class DatabaseServer(BaseServer):
 					"certificate_full_chain": config.certificate.full_chain,
 					"certificate_intermediate_chain": config.certificate.intermediate_chain,
 					"mariadb_depends_on_mounts": self.mariadb_depends_on_mounts,
+					"nat_gateway_ip": self.get_nat_gateway_ip(),
 					**self.get_mount_variables(),
 				},
 			)
@@ -837,7 +843,7 @@ class DatabaseServer(BaseServer):
 		)
 
 	def ansible_run(self, command: str) -> dict[str, str]:
-		inventory = f"{self.ip},"
+		inventory = f"{self.name},"
 		return AnsibleAdHoc(sources=inventory).run(command, self.name)[0]
 
 	@frappe.whitelist()
@@ -1857,6 +1863,8 @@ Latest binlog : {latest_binlog.get("name", "")} - {last_binlog_size_mb} MB {last
 		if not no_of_binlogs or not isinstance(no_of_binlogs, int) or no_of_binlogs < 0:
 			frappe.throw("No of Binlogs are invalid")
 
+		proxy = frappe.db.get_value("Proxy Server", {"status": "Active", "cluster": self.cluster}, "name")
+
 		script = f"""
 #!/usr/bin/env bash
 set -e
@@ -1905,7 +1913,9 @@ systemctl restart mariadb
 					"UserKnownHostsFile=/dev/null",
 					"-o",
 					"ConnectTimeout=30",
-					f"root@{self.ip}",
+					"-J",
+					f"root@{proxy}",
+					f"root@{self.name}",
 					"bash",
 					"-s",
 					"--",
@@ -2305,7 +2315,7 @@ systemctl restart mariadb
 	@dashboard_whitelist()
 	def get_storage_usage(self):
 		try:
-			result = AnsibleAdHoc(sources=f"{self.ip},").run(
+			result = AnsibleAdHoc(sources=f"{self.name},").run(
 				'df --output=source,size,used,target | tail -n +2  && echo -e "\n\n" && du -s /var/lib/mysql/*',
 				self.name,
 				raw_params=True,
@@ -2315,7 +2325,7 @@ systemctl restart mariadb
 
 			binlog_indexes_size = 0
 			with contextlib.suppress(Exception):
-				binlog_indexes_size_result = AnsibleAdHoc(sources=f"{self.ip},").run(
+				binlog_indexes_size_result = AnsibleAdHoc(sources=f"{self.name},").run(
 					"du -sk /home/frappe/binlog_indexes/ | cut -f1",
 					self.name,
 					raw_params=True,
@@ -2411,17 +2421,19 @@ def monitor_disk_performance():
 	databases = frappe.db.get_all(
 		"Database Server",
 		filters={"status": "Active", "is_server_setup": 1, "is_self_hosted": 0},
-		pluck="name",
+		fields=("name"),
+		as_list=True,
 	)
-	frappe.enqueue(
-		"press.press.doctype.disk_performance.disk_performance.check_disk_read_write_latency",
-		servers=databases,
-		server_type="db",
-		deduplicate=True,
-		queue="long",
-		job_id="monitor_disk_performance||database",
-		timeout=3600,
-	)
+	if databases:
+		frappe.enqueue(
+			"press.press.doctype.disk_performance.disk_performance.check_disk_read_write_latency",
+			servers=databases,
+			server_type="db",
+			deduplicate=True,
+			queue="long",
+			job_id="monitor_disk_performance||database",
+			timeout=3600,
+		)
 
 
 def sync_binlogs_info():
@@ -2649,7 +2661,7 @@ def database_flush_tables_of_public_servers():
 		fields=["name", "flush_table_execution_hour"],
 	)
 
-	current_hour = datetime.now().hour
+	current_hour = now_datetime().hour
 
 	for cluster in clusters:
 		if cluster.flush_table_execution_hour is None or cluster.flush_table_execution_hour != current_hour:
