@@ -25,17 +25,24 @@ function getCurrentTeam() {
 	) {
 		return null;
 	}
-	let currentTeam = localStorage.getItem('current_team');
-	if (
-		!currentTeam ||
-		(currentTeam !== window.default_team &&
-			!window.valid_teams.map((t) => t.name).includes(currentTeam) &&
-			!window.is_system_user)
-	) {
-		currentTeam = window.default_team;
-		if (currentTeam) localStorage.setItem('current_team', currentTeam);
+
+	const validTeams = (window.valid_teams || [])
+		.map((team) => team?.name)
+		.filter(Boolean);
+	const fallbackTeam = window.default_team || validTeams[0] || null;
+	const currentTeam = localStorage.getItem('current_team');
+
+	if (currentTeam && validTeams.includes(currentTeam)) {
+		return currentTeam;
 	}
-	return currentTeam;
+
+	if (fallbackTeam) {
+		localStorage.setItem('current_team', fallbackTeam);
+	} else {
+		localStorage.removeItem('current_team');
+	}
+
+	return fallbackTeam;
 }
 
 export async function switchToTeam(team) {
